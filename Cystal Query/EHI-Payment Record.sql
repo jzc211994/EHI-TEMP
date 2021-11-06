@@ -1,0 +1,77 @@
+DECLARE @SOno INT = 265
+DECLARE @BAL FLOAT
+
+DECLARE @SOnum INT
+DECLARE @DPnum INT
+DECLARE @IPnum INT
+DECLARE @DOCTOTAL FLOAT
+
+DECLARE @TBL TABLE(
+ID INT IDENTITY(1,1) PRIMARY KEY,
+SONUM INT,
+DPNUM INT,
+IPNUM INT,
+BAL FLOAT
+)
+
+SET @BAL = (SELECT U_Equity FROM ORDR WHERE DocEntry = @SOno)
+
+DECLARE CUR CURSOR FOR
+SELECT 
+SO.DocEntry,
+DP.DocEntry,
+IP.DocEntry,
+IP.DocTotal
+FROM ORDR SO
+INNER JOIN DPI1 DP1 ON DP1.BaseEntry = SO.DocEntry
+INNER JOIN ODPI DP ON DP.DocEntry = DP1.DocEntry
+INNER JOIN RCT2 IP2 ON IP2.DocEntry = DP.DocEntry AND IP2.InvType = DP.ObjType
+INNER JOIN ORCT IP ON IP.DocEntry = IP2.DocNum
+WHERE SO.DocEntry = @SOno AND IP.Canceled = 'N'
+
+OPEN CUR
+
+FETCH NEXT FROM CUR
+INTO @SOnum, @DPnum, @IPnum, @DOCTOTAL
+
+WHILE @@FETCH_STATUS = 0
+BEGIN 
+	
+	INSERT INTO @TBL(SONUM, DPNUM, IPNUM, BAL) VALUES(@SOnum, @DPnum, @IPnum, @BAL)
+	FETCH NEXT FROM CUR
+	INTO @SOnum, @DPnum, @IPnum, @DOCTOTAL
+	SET @BAL = @BAL - @DOCTOTAL
+END
+
+CLOSE CUR
+DEALLOCATE CUR
+
+
+SELECT
+	SO.Project AS ProjectCode,
+	ITM.ItemName AS PRojectName,
+	SO.CardCode AS ClietCode,
+	SO.CardName AS ClientName,
+	ITM.U_Project AS SiteCode,
+	UDF.Descr AS SiteName,
+	SO.U_EquityTerms AS EquityTerm,
+	ITM.U_Block_No AS Block,
+	ITM.U_Lot_No AS Lot,
+	SO.U_Equity AS Equity,
+	IP.DocDate AS PayDate,
+	DP.DocDueDate AS DueDate,
+	IP.DocTotal AS PayAmount,
+	BL.BAL AS Balance,
+	IP.U_RNo AS ORNum,
+	IP.UserSign AS CreatorNum,
+	HR.lastName + ' ' + HR.firstName as CreatorName,
+	SO.U_DPType AS PaymentType,
+	(SELECT NAME FROM DBO.[@SIGNATORY] WHERE CODE = 'SLS') AS SALES
+FROM @TBL BL
+INNER JOIN ORDR SO ON SO.DocEntry = BL.SONUM
+INNER JOIN ODPI DP ON DP.DocEntry = BL.DPNUM
+INNER JOIN ORCT IP ON IP.DocEntry = BL.IPNUM
+INNER JOIN OITM ITM ON ITM.ItemCode = SO.Project
+INNER JOIN UFD1 UDF ON UDF.FldValue = ITM.U_Project AND UDF.TableID = 'OITM'
+LEFT JOIN OHEM HR ON HR.userId = IP.UserSign2
+ORDER BY DP.DocDueDate

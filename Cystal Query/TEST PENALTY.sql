@@ -1,0 +1,128 @@
+---------------------------------------- CREATION OF SCHEDULE TABLE (START) ----------------------------------------
+DECLARE @SONUM INT = 1
+DECLARE @PAYDATE DATE = GETDATE()
+DECLARE @APPMONTH AS VARCHAR(MAX) = 'JANUARY'
+DECLARE @APPYEAR AS VARCHAR(MAX)  = '2021'
+DECLARE @EXMPDAYS AS INT = 13
+
+DECLARE @TBLSCHED TABLE(
+	ID INT IDENTITY(1, 1) PRIMARY KEY,
+	SONUM INT,
+	DUEDATE DATE)
+
+DECLARE @ENDDATE DATE = (SELECT U_EndDueDate FROM ORDR WHERE DocEntry = @SONUM)
+DECLARE @STARTDATE DATE = (SELECT U_StartDueDate FROM ORDR WHERE DocEntry = @SONUM)
+
+
+WHILE (@STARTDATE <= @ENDDATE)
+	BEGIN
+		INSERT INTO @TBLSCHED(SONUM, DUEDATE) VALUES(@SONUM, @STARTDATE)
+		SET @STARTDATE = DATEADD(MONTH, 1, @STARTDATE)
+	END
+
+
+---------------------------------------- PENALTY COMPUTATION (START) ----------------------------------------
+
+SELECT
+	SO.DocEntry AS SONum,
+	SO.CardCode AS ClientCode,
+	SO.CardName AS ClientName,
+	ITM.U_Project AS SiteCode,
+	UDF.Descr AS SiteName,
+	SO.Project AS ProjectCode,
+	ITM.ItemName AS ProjectName,
+	SO.U_EquityAmortization as Equity,
+	SCH.DueDate,
+	CASE
+		WHEN ITM.U_Project = 'RV' THEN '5%'
+		WHEN ITM.U_Project = 'SW' THEN '7%'
+	END AS PenaltyRate,
+	CASE 
+		WHEN (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS <= 0 THEN 0
+		ELSE (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS
+	END AS DaysLaps,
+	CASE
+		WHEN ITM.U_Project = 'RV' THEN (SO.U_EquityAmortization*.05)/30
+		WHEN ITM.U_Project = 'SW' THEN (SO.U_EquityAmortization*.07)/30
+	END AS PenaltyPerDay,
+	CASE
+		WHEN ITM.U_Project = 'RV' THEN ((SO.U_EquityAmortization*.05)/30)*
+			CASE 
+				WHEN (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS <= 0 THEN 0
+				ELSE (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS
+			END
+		WHEN ITM.U_Project = 'SW' THEN ((SO.U_EquityAmortization*.07)/30)*
+			CASE 
+				WHEN (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS <= 0 THEN 0
+				ELSE (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS
+			END
+	END AS Penalty,
+	CASE
+		WHEN ITM.U_Project = 'RV' THEN
+			CASE
+				WHEN
+					CASE
+						WHEN ITM.U_Project = 'RV' THEN ((SO.U_EquityAmortization*.05)/30)*
+							CASE 
+								WHEN (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS <= 0 THEN 0
+								ELSE (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS
+							END
+						WHEN ITM.U_Project = 'SW' THEN ((SO.U_EquityAmortization*.07)/30)*
+							CASE 
+								WHEN (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS <= 0 THEN 0
+								ELSE (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS
+							END
+					END BETWEEN 1 AND 100 THEN 100
+				ELSE
+					CASE
+						WHEN ITM.U_Project = 'RV' THEN ((SO.U_EquityAmortization*.05)/30)*
+							CASE 
+								WHEN (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS <= 0 THEN 0
+								ELSE (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS
+							END
+						WHEN ITM.U_Project = 'SW' THEN ((SO.U_EquityAmortization*.07)/30)*
+							CASE 
+								WHEN (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS <= 0 THEN 0
+								ELSE (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS
+							END
+					END
+			END
+		WHEN ITM.U_Project = 'SW' THEN
+			CASE
+				WHEN
+					CASE
+						WHEN ITM.U_Project = 'RV' THEN ((SO.U_EquityAmortization*.05)/30)*
+							CASE 
+								WHEN (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS <= 0 THEN 0
+								ELSE (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS
+							END
+						WHEN ITM.U_Project = 'SW' THEN ((SO.U_EquityAmortization*.07)/30)*
+							CASE 
+								WHEN (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS <= 0 THEN 0
+								ELSE (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS
+							END
+					END BETWEEN 1 AND 300 THEN 300
+				ELSE
+					CASE
+						WHEN ITM.U_Project = 'RV' THEN ((SO.U_EquityAmortization*.05)/30)*
+							CASE 
+								WHEN (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS <= 0 THEN 0
+								ELSE (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS
+							END
+						WHEN ITM.U_Project = 'SW' THEN ((SO.U_EquityAmortization*.07)/30)*
+							CASE 
+								WHEN (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS <= 0 THEN 0
+								ELSE (DATEDIFF(DAY, SCH.DUEDATE, @PAYDATE)-3)- @EXMPDAYS
+							END
+					END
+			END
+	END AS PenaltyDue
+
+FROM ORDR SO
+INNER JOIN @TBLSCHED SCH ON SO.DocEntry = SCH.SONUM
+INNER JOIN OITM ITM ON ITM.ItemCode = SO.Project
+INNER JOIN UFD1 UDF ON ITM.U_Project = UDF.FldValue AND UDF.TableID = 'OITM'
+WHERE FORMAT(SCH.DUEDATE,'MMMM') = @APPMONTH AND FORMAT(SCH.DUEDATE,'yyyy') = @APPYEAR
+ORDER BY SCH.ID
+
+
